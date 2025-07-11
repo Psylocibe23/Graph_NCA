@@ -1,0 +1,10 @@
+# Ignore virtual environments
+env/
+venv/
+agnn_env/
+.venv/
+# VSCode settings, pycache, etc
+.vscode/
+__pycache__/
+*.pyc
+.DS_Store
