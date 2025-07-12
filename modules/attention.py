@@ -33,13 +33,3 @@ class ConcatMLP(nn.Module):
         x = torch.cat([q, k], dim=-1)  # (batch, 2*d)
         return self.mlp(x)
     
-
-if __name__ == '__main__':
-    d = 32
-    B = 4
-    q = torch.randn(B, d)
-    k = torch.randn(B, d)
-    for layers in [2, 3]:
-        mlp = ConcatMLP(d, hidden=64, layers=layers)
-        out = mlp(q, k)
-        print(f"layers={layers}: output shape = {out.shape}, values = {out.squeeze().tolist()}")

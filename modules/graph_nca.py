@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from attention import ConcatMLP
-from gating import GateConv
-from ConvGru import ConvGRUCell
+from modules.attention import ConcatMLP
+from modules.gating import GateConv
+from modules.ConvGru import ConvGRUCell
 
 
 class GraphNCA(nn.Module):
@@ -71,8 +71,6 @@ class GraphNCA(nn.Module):
                     if i_ != i:
                         continue
                     # Compute affinity scalar for this edge
-                    print("q_vec.shape:", q_vec.shape)
-                    print("i, j_:", i, j_)
                     e_ij = self.attention(q_vec[:, i, :], k_vec[:, j_, :])  # (B, 1)
                     e_map = e_ij.view(B, 1, 1, 1).expand(-1, 1, self.H, self.W)  # (B, 1, H, W)
                     G_ij = self.gate(e_map)  # (B, C, H, W)

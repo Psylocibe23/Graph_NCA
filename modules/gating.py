@@ -19,13 +19,3 @@ class GateConv(nn.Module):
         gate = self.sigmoid(gate)
         return gate
     
-
-
-if __name__ == "__main__":
-    B, H, W, C = 2, 8, 8, 16
-    x = torch.randn(B, 1, H, W)
-    g = GateConv(out_channels=C)
-    out = g(x)
-    print("Input shape:", x.shape)
-    print("Gate output shape:", out.shape)
-    print("Value range:", out.min().item(), "to", out.max().item())
