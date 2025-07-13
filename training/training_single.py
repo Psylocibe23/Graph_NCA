@@ -4,8 +4,12 @@ import torch.optim as optim
 from utils.data_loader import SingleEmojiDataset
 from utils.graph_utils import create_touching_edges
 from modules.graph_nca import GraphNCA
+from utils.losses import ca_loss
 import json
 import os
+import datetime 
+from torch.utils.tensorboard import SummaryWriter
+
 
 
 # Load config
@@ -14,7 +18,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 # Choose the target emoji (by index)
-target_idx = 0
+target_idx = 6
 target_name = cfg['data']['targets'][target_idx]
 print(f"Training on target: {target_name}")
 
@@ -42,7 +46,6 @@ weight_decay = cfg["training"]["weight_decay"]
 num_epochs = cfg["training"]["num_epochs"]
 
 optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-loss_fn = nn.MSELoss()
 
 os.makedirs(f"results/{target_name}", exist_ok=True)
 
@@ -66,6 +69,7 @@ print("Target image shape:", target_img.shape)
 print("Seed shape:", seed.shape)
 
 target_mask = (target_img.sum(dim=1, keepdim=True) > 0).float()  # (1,1,H,W)
+writer = SummaryWriter(log_dir=f"results/{target_name}/tb_logs")
 
 # Training loop
 from tqdm import trange
@@ -79,15 +83,13 @@ for epoch in trange(num_epochs, desc="Training"):
     alive_mask = pred[:, 0:1]
     # Only paint RGB where alive
     pred_rgb_alive = pred[:, 1:4] * alive_mask
-    # Loss inside target
-    loss_in = loss_fn(pred_rgb_alive * target_mask, target_img * target_mask)
-    # Loss for "alive" cells outside target
-    loss_out = (alive_mask * (1 - target_mask)).mean()
-    loss = loss_in + 0.1 * loss_out
+    loss = ca_loss(pred, target_img, alpha=0.5, beta=0.1)
     loss.backward()
     optimizer.step()
 
     # Logging
+    writer.add_scalar('Loss/train', loss.item(), epoch)
+
     if (epoch + 1) % cfg["logging"]["log_interval"] == 0:
         print(f"\n[LOG] Epoch {epoch+1:04d} - Loss: {loss.item():.6f}")
 
@@ -102,3 +104,16 @@ for epoch in trange(num_epochs, desc="Training"):
 
 torch.save(model.state_dict(), f"results/{target_name}/model_final.pth")
 print(f"\nTraining complete for {target_name}. Final model and images saved.")
+
+experiment_log = {
+    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "target": target_name,
+    "config": cfg,
+    "final_loss": loss.item(),
+    "loss_function": "Cellular Automata Loss",
+    "attention": cfg["model"]["attention"]["type"],
+    "K": K,
+    "num_epochs": num_epochs,
+}
+with open(f"results/{target_name}/experiment_log.json", "w") as f:
+    json.dump(experiment_log, f, indent=2)

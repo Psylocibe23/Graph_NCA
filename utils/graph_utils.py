@@ -25,26 +25,3 @@ def create_touching_edges(P):
                         j = n_row*P + n_col  # Neighbor index
                         edges.append((i,j))
     return edges
-
-
-
-if __name__ == "__main__":
-    # Smoke test for P = 3 and P = 4
-    from collections import Counter
-
-    for P in (3, 4):
-        edges = create_touching_edges(P)
-        print(f"P = {P}, nodes = {P*P}, directed edges = {len(edges)}")
-
-        # Count how many outgoing edges each node has
-        cnt = Counter(i for i, _ in edges)
-
-        # Example nodes: corner (0), edge (1), center
-        examples = {
-            "corner": 0,
-            "edge": 1,
-            "center": (P//2)*P + (P//2)
-        }
-        for name, node in examples.items():
-            print(f"  {name} node {node} has {cnt[node]} neighbors")
-        print("  Sample edges:", edges[:8])

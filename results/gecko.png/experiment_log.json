@@ -1,0 +1,63 @@
+{
+  "timestamp": "2025-07-13 23:23:17",
+  "target": "gecko.png",
+  "config": {
+    "data": {
+      "emojis_dir": "data/emojis",
+      "canvas": {
+        "P": 8,
+        "H": 32,
+        "W": 32
+      },
+      "targets": [
+        "bacteria.png",
+        "tooth.png",
+        "heart.png",
+        "squid.png",
+        "smile.png",
+        "eye.png",
+        "mushroom.png",
+        "four_leaf_clover.png",
+        "gecko.png",
+        "star.png"
+      ]
+    },
+    "model": {
+      "channels": {
+        "C": 16,
+        "d": 32
+      },
+      "iterations": {
+        "K": 32
+      },
+      "attention": {
+        "type": "concat_mlp",
+        "mlp_hidden": 64,
+        "mlp_layers": 2
+      },
+      "convgru": {
+        "kernel_size": 3
+      }
+    },
+    "training": {
+      "batch_size": 1,
+      "num_epochs": 50,
+      "learning_rate": 0.001,
+      "optimizer": "Adam",
+      "weight_decay": 0.0001,
+      "loss": "mse"
+    },
+    "logging": {
+      "log_interval": 10,
+      "save_interval": 100,
+      "results_dir": "results"
+    },
+    "seed": 42
+  },
+  "final_loss": 0.005770518444478512,
+  "loss_function": "Cellular Automata Loss (alpha=0.1)",
+  "attention": "concat_mlp",
+  "K": 32,
+  "num_epochs": 50,
+  "notes": "None"
+}
