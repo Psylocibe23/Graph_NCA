@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-07-13 23:43:07",
+  "timestamp": "2025-07-14 19:40:47",
   "target": "mushroom.png",
   "config": {
     "data": {
@@ -41,7 +41,7 @@
     },
     "training": {
       "batch_size": 1,
-      "num_epochs": 50,
+      "num_epochs": 20,
       "learning_rate": 0.001,
       "optimizer": "Adam",
       "weight_decay": 0.0001,
@@ -54,10 +54,9 @@
     },
     "seed": 42
   },
-  "final_loss": -4.949544906616211,
-  "loss_function": "Cellular Automata Loss (alpha=0.1)",
+  "final_loss": 0.11638544499874115,
+  "loss_function": "Cellular Automata Loss",
   "attention": "concat_mlp",
   "K": 32,
-  "num_epochs": 50,
-  "notes": "None"
+  "num_epochs": 20
 }
