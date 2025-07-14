@@ -21,7 +21,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 # Choose the target emoji (by index)
-target_idx = 2
+target_idx = 7
 target_name = cfg['data']['targets'][target_idx]
 print(f"Training on target: {target_name}")
 
@@ -74,11 +74,21 @@ print("Seed shape:", seed.shape)
 
 target_mask = (target_img.sum(dim=1, keepdim=True) > 0).float()  # (1,1,H,W)
 writer = SummaryWriter(log_dir=f"results/{target_name}/tb_logs")
-loss_fn = nn.MSELoss()
+loss_fn = nn.MSELoss()  # Simple per-pixel MSE 
 
 save_interval = 10  # Save images every 10 epochs
 sobel = SobelFilter(in_channels=3).to(device)
 lambda_sobel = 0.1  # weight of the edge loss
+
+print('Seed stats:', seed.min().item(), seed.max().item(), seed.mean().item())
+print('Seed any NaN/Inf:', torch.isnan(seed).any().item(), torch.isinf(seed).any().item())
+
+print("=== LocalCA direct test ===")
+test_patch = torch.zeros(1, C, H, W).to(device)
+out = model.local_ca(test_patch)
+print("LocalCA test out stats:", out.min().item(), out.max().item(), out.mean().item())
+print("LocalCA test out any NaN/Inf:", torch.isnan(out).any().item(), torch.isinf(out).any().item())
+
 
 for epoch in trange(num_epochs, desc="Training"):
     model.train()
@@ -94,6 +104,7 @@ for epoch in trange(num_epochs, desc="Training"):
     # Combine
     loss = main_loss + lambda_sobel * edge_loss
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
     optimizer.step()
 
     writer.add_scalar('Loss/train', loss.item(), epoch)
@@ -104,6 +115,10 @@ for epoch in trange(num_epochs, desc="Training"):
     if (epoch + 1) % save_interval == 0 or epoch == num_epochs - 1:
         # Save alive mask
         alive_mask = pred[:, 0:1].detach().cpu().squeeze(0).clamp(0, 1).squeeze(0).numpy()
+        print('Alive mask stats:', alive_mask.min().item(), alive_mask.max().item(), alive_mask.mean().item())
+        if torch.isnan(pred).any():
+            print(f"NaN detected in pred at epoch {epoch+1}")
+            break
         plt.imsave(f"results/{target_name}/alive_{epoch+1:04d}.png", alive_mask, cmap='gray')
 
         # Save predicted RGB

@@ -5,12 +5,25 @@ from modules.gating import GateConv
 from modules.ConvGru import ConvGRUCell
 
 
+
+class LocalCA(nn.Module):
+    """Local pixel wise update rule for the NCAs"""
+    def __init__(self, channels):
+        super().__init__()
+        self.conv = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True)
+        self.act = nn.ELU(inplace=True)
+
+    def forward(self, x):
+        return self.act(self.conv(x))
+
+
+
 class GraphNCA(nn.Module):
     """
     Graph Attention Neural Cellular Automata network:
     - Split the canvas into P*P nodes (patches)
     - Each node is a NCA with internal state (C, H, W)
-    - Performs message passing, attention, gating, and convolutional GRU state updates
+    - Performs local update, message passing, attention, gating, and convolutional GRU graph-level state update
     """
     def __init__(self, C, H, W, d, K, attention_hidden, attention_layers):
         super().__init__()
@@ -30,6 +43,14 @@ class GraphNCA(nn.Module):
         self.gate = GateConv(out_channels=C, kernel_size=3)
         # ConvGRU
         self.cell = ConvGRUCell(input_channels=C, hidden_channels=C, kernel_size=3)
+        # Local update rule
+        self.local_ca = LocalCA(C)
+        # 1x1 convolution to mix local and graph level information
+        self.mix = nn.Conv2d(2*C, C, kernel_size=1)
+        print('LocalCA conv weight stats:', self.local_ca.conv.weight.data.min().item(), self.local_ca.conv.weight.data.max().item(), self.local_ca.conv.weight.data.mean().item())
+        print('LocalCA conv bias stats:', self.local_ca.conv.bias.data.min().item(), self.local_ca.conv.bias.data.max().item(), self.local_ca.conv.bias.data.mean().item())
+
+
 
 
     def forward(self, seed, edge_index):
@@ -50,9 +71,32 @@ class GraphNCA(nn.Module):
                 patch = seed[:, :, p*self.H:(p+1)*self.H, q*self.W:(q+1)*self.W]
                 patches.append(patch)
         X = torch.stack(patches, dim=1)  # (B, N, C, H, W)
+        X = torch.clamp(X, -10, 10)
 
         # Initialize node state
         for t in range(self.K):
+            X_prev = X  # Avoid updating X until the end of the loop
+            # Local CA update (pixel-wise) within each patch
+            X_local = []
+            for i in range(N):
+                if t == 0 and i == 0:
+                    patch = X_prev[:, i]
+                    print("First patch stats:", patch.min().item(), patch.max().item(), patch.mean().item())
+                    print("Patch any NaN/Inf:", torch.isnan(patch).any().item(), torch.isinf(patch).any().item())
+
+                h_local = self.local_ca(X_prev[:, i])  # Local convolution update
+                if torch.isnan(h_local).any() or torch.isinf(h_local).any():
+                    print(f"NaN in h_local, patch {i} at t={t}")
+                    print("h_local stats:", h_local.min().item(), h_local.max().item(), h_local.mean().item())
+                X_local.append(h_local)
+            X_local = torch.stack(X_local, dim=1)  # (B, N, C, H, W)
+            print("X_local after stacking:", X_local.shape)
+            print("X_local min/max/mean:", X_local.min().item(), X_local.max().item(), X_local.mean().item())
+
+            if torch.isnan(X_local).any() or torch.isinf(X_local).any():
+                print(f'NaN/Inf detected at CA state update (t={t})')
+                raise RuntimeError('Runtime error') 
+
             # Project (B, N, C, H, W) --> (B, N, d, H, W)
             Q = self.f_Q(X.view(B*N, C, self.H, self.W)).view(B, N, self.d, self.H, self.W)
             K_proj = self.f_K(X.view(B*N, C, self.H, self.W)).view(B, N, self.d, self.H, self.W)
@@ -64,7 +108,7 @@ class GraphNCA(nn.Module):
             k_vec = K_proj.mean([-2,-1])  # (B, N, d)
 
             # Message passing
-            msgs = [torch.zeros_like(X)] * N
+            msgs = [None] * N
             for i in range(N):
                 m_agg = torch.zeros(B, C, self.H, self.W, device=X.device)
                 for e, (i_, j_) in enumerate(edge_index):
@@ -81,12 +125,27 @@ class GraphNCA(nn.Module):
                 msgs[i] = m_agg
             M_agg = torch.stack(msgs, dim=1)  # (B, N, C, H, W)
 
-            # ConvGRU updates
+            # ConvGRU update (graph-level)
+            X_graph = []
+            for i in range(N):
+                h = self.cell(M_agg[:, i], X_prev[:, i])
+                X_graph.append(h)
+            X_graph = torch.stack(X_graph, dim=1)
+
+            if torch.isnan(X_graph).any() or torch.isinf(X_graph).any():
+                print(f'NaN/Inf detected at graph state update (t={t})')
+                raise RuntimeError('Runtime error')
+
+            # 4. Concatenate local and graph, then mix
             X_new = []
             for i in range(N):
-                h = self.cell(M_agg[:, i], X[:, i])
-                X_new.append(h)
+                concat = torch.cat([X_local[:, i], X_graph[:, i]], dim=1)  # (B, 2C, H, W)
+                mixed = self.mix(concat)  # (B, C, H, W)
+                X_new.append(mixed)
             X = torch.stack(X_new, dim=1)
+            if torch.isnan(X).any() or torch.isinf(X).any():
+                print(f'NaN/Inf detected at ConvGRU state update (t={t})')
+                raise RuntimeError('Runtime error') 
 
         # After K iterations ressemble the canvas for the red-out
         out = torch.zeros(B, C, PH, PW, device=X.device)
