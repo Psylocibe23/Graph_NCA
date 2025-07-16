@@ -55,7 +55,7 @@ optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 os.makedirs(f"results/{target_name}", exist_ok=True)
 
 
-
+# Plot comparison target vs predicted
 import matplotlib.pyplot as plt
 def save_comparison(target_img, pred_rgb, epoch, save_dir):
     timg = target_img.detach().cpu().squeeze(0).permute(1,2,0).numpy()

@@ -30,12 +30,12 @@ class SingleEmojiDataset(Dataset):
         # Load target image
         img_path = os.path.join(self.emojis_dir, target_name)
         img = Image.open(img_path).convert("RGB")  
-        # Resize (if needed)
+        # Resize
         self.to_tensor = T.Compose([
             T.Resize((self.P*self.H, self.P*self.W)),
             T.ToTensor(),
         ])
-        self.sobel = SobelFilter(in_channels=3, as_grayscale=True)
+        self.sobel = SobelFilter(in_channels=3, as_grayscale=True)  # Sobel filters for edge detection
         self.target = self.to_tensor(img).squeeze(0)  # (3, PH, PW)
 
         # Compute edge map from the target image
@@ -46,9 +46,12 @@ class SingleEmojiDataset(Dataset):
 
         # Precompute canvas
         canvas = torch.zeros(self.C, self.P*self.H, self.P*self.W)
+
         # Set the center pixel to alive (i.e. channel 0 equals to 1)
         # cy, cx = (self.P*self.H)//2, (self.P*self.W)//2
         # canvas[0, cy, cx] = 1.0
+
+        # Set central square to alive 
         side = 3
         cy, cx = (self.P*self.H)//2, (self.P*self.W)//2
         half = side // 2
@@ -68,25 +71,4 @@ class SingleEmojiDataset(Dataset):
         - target (3, P*H, P*W)  The target image our NCAs will grow to
         """
         return self.seed.clone(), self.target.clone()
-    
 
-
-if __name__=='__main__':
-    cfg = json.load(open('config.json'))
-    target = cfg['data']['targets'][0]
-    print(f"Running smoke test on {target}")
-    ds = SingleEmojiDataset('config.json', target)
-    seed, img = ds[0]
-    print(f"Seed shape: {seed.shape}")
-    print(f"Target shape:{img.shape}")
-    cy, cx = seed.shape[1]//2, seed.shape[2]//2
-    print("Seed center value:", seed[0,cy,cx].item())
-    print("Target range:", img.min().item(), "to", img.max().item())
-    # 5) Visualize seed channel-0
-    seed_ch0 = seed[0].mul(255).byte().cpu().numpy()
-    seed_pil = Image.fromarray(seed_ch0, mode='L')
-    seed_pil.show(title="Seed (channel 0)")
-    # 6) Visualize target RGB
-    tgt_np = img.mul(255).byte().permute(1, 2, 0).cpu().numpy()
-    tgt_pil = Image.fromarray(tgt_np, mode='RGB')
-    tgt_pil.show(title=f"Target: {target}")

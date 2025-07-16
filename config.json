@@ -3,8 +3,8 @@
     "emojis_dir": "data/emojis",
     "canvas": {
       "P": 8,
-      "H": 32,
-      "W": 32
+      "H": 16,
+      "W": 16
     },
     "targets": [
       "bacteria.png",  
@@ -21,8 +21,8 @@
   },
 
   "model": {
-    "channels": { "C": 17, "d": 32 },
-    "iterations": { "K": 48 },
+    "channels": { "C": 16, "d": 32 },
+    "iterations": { "K": 32 },
     "attention": {
       "type": "concat_mlp",
       "mlp_hidden": 64,
@@ -33,7 +33,7 @@
 
   "training": {
     "batch_size": 1,
-    "num_epochs": 50,
+    "num_epochs": 120,
     "learning_rate": 0.001,
     "optimizer": "Adam",
     "weight_decay": 0.0001,
@@ -42,8 +42,8 @@
   },
 
   "logging": {
-    "log_interval": 10,
-    "save_interval": 20,
+    "log_interval": 20,
+    "save_interval": 40,
     "results_dir": "results"
   },
 

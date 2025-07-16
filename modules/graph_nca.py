@@ -11,7 +11,7 @@ class LocalCA(nn.Module):
     def __init__(self, channels):
         super().__init__()
         self.conv = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True)
-        self.act = nn.ELU(inplace=False)
+        self.act = nn.ELU(inplace=True)
 
     def forward(self, x):
         return self.act(self.conv(x))
@@ -95,7 +95,7 @@ class GraphNCA(nn.Module):
             M = self.f_M(X.view(B*N, C, self.H, self.W)).view(B, N, C, self.H, self.W)
 
             # Spatial pooling for queries and keys (obtain global summary)
-            q_vec = Q.mean([-2,-1])  # (B, N, d), average over last two dimension (-2) for each patch (-1)
+            q_vec = Q.mean([-2,-1])  # (B, N, d), average over last two dimensions (-2) for each patch (-1)
             k_vec = K_proj.mean([-2,-1])  # (B, N, d)
 
             # Message passing

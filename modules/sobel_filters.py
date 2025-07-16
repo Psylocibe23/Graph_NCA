@@ -11,7 +11,7 @@ class SobelFilter(nn.Module):
         kernel_y = torch.tensor([[1,2,1], [0,0,0], [-1,-2,-1]], dtype=torch.float32)
         kx = kernel_x[None, None, :, :].repeat(in_channels, 1, 1, 1)
         ky = kernel_y[None, None, :, :].repeat(in_channels, 1, 1, 1)
-        self.register_buffer('weight_x', kx)
+        self.register_buffer('weight_x', kx)  # Weights are fixed, not learned
         self.register_buffer('weight_y', ky)
         self.in_channels = in_channels
         self.as_grayscale = as_grayscale

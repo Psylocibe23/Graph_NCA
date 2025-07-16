@@ -1,10 +1,15 @@
 import torch
+import torch.nn as nn
+import matplotlib.pyplot as plt
+import os
+import numpy as np
+
 
 
 def create_touching_edges(P):
     """
     Returns a list of directed edges (i -> j) for a PxP grid
-    each node i connects with its 8 touching neighbors j
+    each node i connects with its 8 touching neighbors j (nodes are patches)
     """
     edges = []
     for row in range(P):
@@ -27,36 +32,21 @@ def create_touching_edges(P):
     return edges
 
 
-import matplotlib.pyplot as plt
-import os
-
-def save_ca_channels(state, epoch, save_dir, vmax=None, vmin=None):
-    # state: (1, C, H, W) or (C, H, W)
-    state = state.detach().cpu().squeeze(0)  # (C, H, W)
-    C = state.shape[0]
-    os.makedirs(save_dir, exist_ok=True)
-    for ch in range(C):
-        channel_img = state[ch].numpy()
-        # Optionally normalize to 0-1 for visualization
-        channel_img = (channel_img - channel_img.min()) / (channel_img.max() - channel_img.min() + 1e-8)
-        plt.imsave(f"{save_dir}/epoch{epoch:04d}_ch{ch}.png", channel_img, cmap="gray", vmin=0, vmax=1)
-        plt.imsave(f"{save_dir}/epoch{epoch:04d}_alive_ch0.png", channel_img, cmap="gray", vmin=0, vmax=1)
-
-
-
-import numpy as np
-
-def save_channel_grid(state, epoch, save_dir):
-    state = state.detach().cpu().squeeze(0)  # (C, H, W)
-    C, H, W = state.shape
-    grid_size = int(np.ceil(C ** 0.5))
-    # Pad with zeros if not a perfect square
-    pad = grid_size ** 2 - C
-    if pad > 0:
-        state = torch.cat([state, torch.zeros(pad, H, W)], dim=0)
-    # Normalize for visualization
-    state = (state - state.min()) / (state.max() - state.min() + 1e-8)
-    # Arrange into grid
-    grid = torch.cat([torch.cat([state[i*grid_size + j] for j in range(grid_size)], dim=1) for i in range(grid_size)], dim=0)
-    plt.imsave(f"{save_dir}/epoch{epoch:04d}_channel_grid.png", grid.numpy(), cmap="gray", vmin=0, vmax=1)
-
+def create_pixel_graph_edges(H, W):
+    """
+    Returns a list of directed edges (j -> i) connecting pixel j
+    with its 8 neighbors
+    """
+    edges = []
+    for row in range(H):
+        for col in range(W):
+            i = row * W + col
+            for d_row in [-1, 0, 1]:
+                for d_col in [-1, 0, 1]:
+                    if d_row == 0 and d_col == 0: continue
+                    n_row = row + d_row
+                    n_col = col + d_col
+                    if 0 <= n_row < H and 0 <= n_col < W:
+                        j = n_row * W + n_col
+                        edges.append((i, j))
+    return edges
