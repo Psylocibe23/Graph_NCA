@@ -4,6 +4,7 @@ import torch
 from torch.utils.data import Dataset
 from PIL import Image
 import torchvision.transforms as T
+from modules.sobel_filters import SobelFilter
 
 
 class SingleEmojiDataset(Dataset):
@@ -34,13 +35,26 @@ class SingleEmojiDataset(Dataset):
             T.Resize((self.P*self.H, self.P*self.W)),
             T.ToTensor(),
         ])
+        self.sobel = SobelFilter(in_channels=3, as_grayscale=True)
         self.target = self.to_tensor(img).squeeze(0)  # (3, PH, PW)
+
+        # Compute edge map from the target image
+        target_tensor = self.target.unsqueeze(0)   # (1, 3, PH, PW)
+        with torch.no_grad():
+            edge = self.sobel(target_tensor)       # (1, 1, PH, PW)
+        edge = edge.squeeze(0)                     # (1, PH, PW)
 
         # Precompute canvas
         canvas = torch.zeros(self.C, self.P*self.H, self.P*self.W)
         # Set the center pixel to alive (i.e. channel 0 equals to 1)
+        # cy, cx = (self.P*self.H)//2, (self.P*self.W)//2
+        # canvas[0, cy, cx] = 1.0
+        side = 3
         cy, cx = (self.P*self.H)//2, (self.P*self.W)//2
-        canvas[0, cy, cx] = 1.0
+        half = side // 2
+        canvas[0, cy-half:cy+half+1, cx-half:cx+half+1] = 1.0
+        canvas += torch.randn_like(canvas) * 0.05 # Add noise to initial state
+        canvas[4, :, :] = edge[0]   # Set channel 4 as edge map
         self.seed = canvas  # (C, P*H, P*W)
 
     def __len__(self):

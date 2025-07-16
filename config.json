@@ -21,8 +21,8 @@
   },
 
   "model": {
-    "channels": { "C": 16, "d": 32 },
-    "iterations": { "K": 32 },
+    "channels": { "C": 17, "d": 32 },
+    "iterations": { "K": 48 },
     "attention": {
       "type": "concat_mlp",
       "mlp_hidden": 64,
@@ -33,16 +33,17 @@
 
   "training": {
     "batch_size": 1,
-    "num_epochs": 100,
-    "learning_rate": 0.0001,
+    "num_epochs": 50,
+    "learning_rate": 0.001,
     "optimizer": "Adam",
     "weight_decay": 0.0001,
-    "loss": "mse"
+    "loss": "ca_loss",
+    "edge_loss_weight": 0.05
   },
 
   "logging": {
     "log_interval": 10,
-    "save_interval": 100,
+    "save_interval": 20,
     "results_dir": "results"
   },
 

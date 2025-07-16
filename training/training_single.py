@@ -7,6 +7,7 @@ from utils.graph_utils import create_touching_edges
 from modules.graph_nca import GraphNCA
 from utils.losses import ca_loss
 from modules.sobel_filters import SobelFilter
+from utils.graph_utils import save_ca_channels, save_channel_grid
 import json
 import os
 import datetime 
@@ -21,7 +22,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 # Choose the target emoji (by index)
-target_idx = 7
+target_idx = 8
 target_name = cfg['data']['targets'][target_idx]
 print(f"Training on target: {target_name}")
 
@@ -93,16 +94,16 @@ print("LocalCA test out any NaN/Inf:", torch.isnan(out).any().item(), torch.isin
 for epoch in trange(num_epochs, desc="Training"):
     model.train()
     optimizer.zero_grad()
-    # Forward pass
-    pred = model(seed, edges)  # (1, C, PH, PW)
-    pred_rgb = pred[:, 1:4]  # (1, 3, Ph, PW)
+    
+    pred = model(seed, edges)
+    pred_rgb = pred[:, 1:4]
+    
     main_loss = loss_fn(pred_rgb, target_img)
-    # Sobel edge loss
     edge_pred = sobel(pred_rgb)
     edge_target = sobel(target_img)
     edge_loss = F.mse_loss(edge_pred, edge_target)
-    # Combine
     loss = main_loss + lambda_sobel * edge_loss
+
     loss.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
     optimizer.step()
@@ -111,6 +112,9 @@ for epoch in trange(num_epochs, desc="Training"):
 
     if (epoch + 1) % cfg["logging"]["log_interval"] == 0:
         print(f"\n[LOG] Epoch {epoch+1:04d} - Loss: {loss.item():.6f}")
+        for name, p in model.named_parameters():
+            print(f"{name} nan: {torch.isnan(p.data).any().item()}, inf: {torch.isinf(p.data).any().item()}, min: {p.data.min().item()}, max: {p.data.max().item()}")
+
 
     if (epoch + 1) % save_interval == 0 or epoch == num_epochs - 1:
         # Save alive mask

@@ -20,7 +20,7 @@ class SobelFilter(nn.Module):
         # x: (B, C, H, W)
         gx = F.conv2d(x, self.weight_x, padding=1, groups=self.in_channels)
         gy = F.conv2d(x, self.weight_y, padding=1, groups=self.in_channels)
-        edge = (gx**2 + gy**2).sqrt()
+        edge = torch.sqrt(torch.clamp(gx ** 2 + gy ** 2, min=1e-8))
         if self.as_grayscale:
             edge = edge.mean(dim=1, keepdim=True)
-        return edge 
+        return edge

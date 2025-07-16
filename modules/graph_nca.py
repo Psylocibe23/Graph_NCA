@@ -11,7 +11,7 @@ class LocalCA(nn.Module):
     def __init__(self, channels):
         super().__init__()
         self.conv = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True)
-        self.act = nn.ELU(inplace=True)
+        self.act = nn.ELU(inplace=False)
 
     def forward(self, x):
         return self.act(self.conv(x))
@@ -72,26 +72,17 @@ class GraphNCA(nn.Module):
                 patches.append(patch)
         X = torch.stack(patches, dim=1)  # (B, N, C, H, W)
         X = torch.clamp(X, -10, 10)
-
+        
         # Initialize node state
         for t in range(self.K):
             X_prev = X  # Avoid updating X until the end of the loop
             # Local CA update (pixel-wise) within each patch
             X_local = []
             for i in range(N):
-                if t == 0 and i == 0:
-                    patch = X_prev[:, i]
-                    print("First patch stats:", patch.min().item(), patch.max().item(), patch.mean().item())
-                    print("Patch any NaN/Inf:", torch.isnan(patch).any().item(), torch.isinf(patch).any().item())
-
                 h_local = self.local_ca(X_prev[:, i])  # Local convolution update
-                if torch.isnan(h_local).any() or torch.isinf(h_local).any():
-                    print(f"NaN in h_local, patch {i} at t={t}")
-                    print("h_local stats:", h_local.min().item(), h_local.max().item(), h_local.mean().item())
                 X_local.append(h_local)
             X_local = torch.stack(X_local, dim=1)  # (B, N, C, H, W)
-            print("X_local after stacking:", X_local.shape)
-            print("X_local min/max/mean:", X_local.min().item(), X_local.max().item(), X_local.mean().item())
+
 
             if torch.isnan(X_local).any() or torch.isinf(X_local).any():
                 print(f'NaN/Inf detected at CA state update (t={t})')
@@ -122,6 +113,11 @@ class GraphNCA(nn.Module):
                     # Gated message
                     msg = G_ij * M_j
                     m_agg += msg
+                    if (t in [0, self.K-1]) and (i in [0, 1]) and (j_ in [0, 1]):
+                        print(f"[t={t}] Edge {i}->{j_}: e_ij={e_ij.mean().item():.4f}, "
+                  f"msg mean={msg.mean().item():.4f}, m_agg mean={m_agg.mean().item():.4f}")
+                if (t in [0, self.K-1]) and (i in [0, 1]):
+                    print(f"[t={t}] Node {i} m_agg mean after all messages: {m_agg.mean().item():.4f}, std: {m_agg.std().item():.4f}")
                 msgs[i] = m_agg
             M_agg = torch.stack(msgs, dim=1)  # (B, N, C, H, W)
 
@@ -147,10 +143,17 @@ class GraphNCA(nn.Module):
                 print(f'NaN/Inf detected at ConvGRU state update (t={t})')
                 raise RuntimeError('Runtime error') 
 
-        # After K iterations ressemble the canvas for the red-out
-        out = torch.zeros(B, C, PH, PW, device=X.device)
-        for n in range(N):
-            p, q = divmod(n, P)  # n=p*p+q
-            out[:, :, p*self.H:(p+1)*self.H, q*self.W:(q+1)*self.W] = X[:, n, :, :, :]
+        # After K iterations reassemble the canvas for the read-out (autograd-safe, no inplace ops)
+        X = X.view(B, P, P, C, self.H, self.W)
+        X = X.permute(0, 3, 1, 4, 2, 5)
+        out = X.contiguous().view(B, C, PH, PW)
+        # Enforce alive mask on RGB channels (channels 1-3) for the whole batch
+        alive_mask = out[:, 0:1, :, :].clamp(0, 1)
+        out_rgb = out[:, 1:4, :, :] * alive_mask
+        if out.shape[1] > 4:
+            out_rest = out[:, 4:, :, :]
+            out = torch.cat([out[:, 0:1, :, :], out_rgb, out_rest], dim=1)
+        else:
+            out = torch.cat([out[:, 0:1, :, :], out_rgb], dim=1)
         return out
     
